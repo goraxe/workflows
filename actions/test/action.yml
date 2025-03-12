@@ -1,0 +1,27 @@
+name: Test 
+description: Test
+inputs: 
+  target:
+    description: "directory to run tests in"
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+    - id: test_system
+      working-directory: ${{ inputs.target }}
+      shell: bash
+      run: |
+        if [ -f "Cargo.toml" ]; then
+          echo "lang=rust" >> $GITHUB_OUTPUT
+        elif [ -f "package.json" ]; then
+          echo "lang=node" >> $GITHUB_OUTPUT
+        fi
+    - if: ${{ steps.test_system.outputs.lang == 'rust' }}
+      uses: ./.github/actions/test_rust
+      with:
+        target: ${{ inputs.target }}
+    - if: ${{ steps.test_system.outputs.lang == 'node' }}
+      uses: ./.github/actions/test_node
+      with:
+        target: ${{ inputs.target }}

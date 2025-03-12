@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - main
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    # validate commit message
+  determine_targets:
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.targets.outputs.targets }}
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+        # this could be replaced by getting the most recent tag, then
+        # getting the commits between the last tag and the current commit
+      - name: Get commits between last success and this commit
+        uses: nrwl/nx-set-shas@v3
+        with:
+          fallback-sha: 89070420373e8769feafe1e70f4d5d4f5f81cfd0
+          workflow-id: cd.yaml
+      - id: targets
+        run: |
+          targets=$(git diff --name-only ${NX_BASE}..${NX_HEAD} | xargs -L1 dirname | sed -e '/^\./d' -e 's@/.*$@@' | uniq | jq -ncR '[inputs]')
+          echo "targets=${targets}" >> "$GITHUB_OUTPUT"
+          
+
+  test:
+    runs-on: ubuntu-latest
+    needs: determine_targets
+    strategy:
+      matrix:
+        target: ${{ fromJSON(needs.determine_targets.outputs.targets) }}
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/test
+        with:
+          target: ${{ matrix.target }}
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

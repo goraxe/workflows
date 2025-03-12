@@ -1,0 +1,48 @@
+name: CD
+on:
+  push:
+    branches:
+      - main
+      - feature/cd
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-with-docker-engine:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: 'read'
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Log in to the Container registry
+        uses: docker/login-action@d910b140723c904c9e74efef5dc6af05d5143104
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          version: 8
+          run_install: false
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: 'Install Dependencies'
+        run: pnpm install
+      - name: Derive appropriate SHAs for base and head for `nx affected` commands
+        uses: nrwl/nx-set-shas@v3
+      - name: 'Build images'
+        run: |
+          git config --local user.name "deployment bot"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          INPUT_GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} pnpx nx affected --base=$NX_BASE --head=$NX_HEAD --target=version --parallel=2
